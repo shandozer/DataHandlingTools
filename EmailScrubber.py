@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-__author__ = 'vhasfcbuckls'
+__author__ = 'Shannon T. Buckley'
 """
 email scrubber
 """
