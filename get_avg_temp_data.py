@@ -9,7 +9,9 @@ from BeautifulSoup import BeautifulSoup
 import urllib2
 from datetime import date
 
-project_root = '/Users/st_buckls/PycharmProjects/ScrapeyScrape/'
+project_root = path.join(os.getcwd(), 'WeatherScrapeData')
+os.makedirs(project_root)
+
 file_out = path.join(project_root, 'weather-data.txt')
 
 YEAR = 2009
