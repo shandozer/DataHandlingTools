@@ -1,29 +1,24 @@
-#!/usr/local/bin/python
-
+#!/usr/bin/env python
+__author__ = 'Shannon T. Buckley'
 """
 email scrubber
 """
 import email
 import poplib
 import os
+import sys
 from os import path
 from string import split
 import logging
 import time
+import optparse
+import getpass
 
-root = path.join('/Users/you/somewhere/')
-
-logfile = path.join(root, 'email_scrubber.log')
-
-logging.basicConfig(filename=logfile, level=logging.DEBUG)
+root = path.join(path.expanduser('~'), 'blah_emails')
 
 _logger = logging.getLogger()
 
-
-SERVER = 'blah.server.com'
-USER = 'user@blah.org'
-PW = 'stuff'
-
+SERVER = 'anyserver.com'
 
 
 def get_messages(server):
@@ -53,15 +48,21 @@ def process_message(an_email):
     messagedate = email.utils.parsedate(datestr)
     datestr = time.strftime("%Y.%m.%d.%H%M", messagedate)
 
-    filename = 'bhr_email_%s.txt' % datestr
-    filepath = path.join(root, filename)
+    to_line = full_msg.get("To")
+    to_line = to_line.split('"')[1]
+
+    filename = '%s_%s.txt' % (to_line, datestr)
+    filepath = path.join(output_path, filename)
+
+    sub_line = full_msg.get("Subject")
 
     from_line = full_msg.get("From").lower()
 
     targets = get_from_line(from_line)
-    _logger.info('Targets are: %s' % targets)
 
     f = open(filepath, 'w')
+
+    f.write("Subject: " + sub_line)
 
     for part in full_msg.walk():
 
@@ -82,14 +83,9 @@ def get_from_line(message):
     :return: list of from-line elements we care about.
     """
 
-
-    # EXAMPLE_FROM_LINE = r'From: "Last, First" <First.Last@ucsf.edu>'
-
     #email_pattern = r"([A-Za-z0-9_-%.]+)@([A-Za-z0-9_]+)\.([A-Za-z]{2,4})"
 
     from_line = message.lower()
-
-    _logger.debug('from line is %s' % from_line)
 
     from_chunk = from_line.split('<')[0]
     from_name = from_chunk.strip('from: ').strip(r'\"')
@@ -98,8 +94,6 @@ def get_from_line(message):
     first = from_name.split(',')[1].strip()
 
     email_add = from_line.split('<')[1].strip('>')
-
-    _logger.debug('From-line parts are %s, %s, %s' % (email_add, last, first))
 
     targets = [last, first, email_add]
 
@@ -124,20 +118,45 @@ def redact_message_body(message_body, targets=None):
 
 def main():
 
-    if not path.exists(root):
-        print 'making email box to store your messages...'
-        os.mkdir(root)
+    global output_path
 
-    os.chdir(root)
+    logfile = path.join(output_path, 'email_scrubber.log')
+    logging.basicConfig(filename=logfile, level=logging.DEBUG)
 
-    print 'attempting connection...'
+    parser = optparse.OptionParser()
+    parser.add_option('-u', '--username', dest="user", type="string", help="Username takes the form: user@domain.org")
+    parser.add_option("-o", "--output_to", dest="output_path", default=root, type="string", help="Enter a path to a folder.")
 
+    (options, args) = parser.parse_args()
+
+    if options.user is None:
+        print "\n\tOops! You need to supply a user name.\n"
+        parser.print_help()
+        sys.exit(1)
+    else:
+        user = options.user
+
+    output_path = path.join(options.output_path)
+
+    if not path.exists(output_path):
+        os.mkdir(output_path)
+
+    os.chdir(output_path)
+
+    # MAKE SURE YOU SET YOUR SERVER UP FIRST!
     server = poplib.POP3(SERVER, 110)
 
-    server.user(USER)
-    server.pass_(PW)
+    try:
+        server.user(user)
+        pw = getpass.getpass()
+        server.pass_(pw)
+    except Exception:
+        print "\n\tsomething is wrong with either username or Password\n"
+        parser.print_help()
+        sys.exit(1)
 
-    print 'connected!\nGetting messages...'
+    print 'Connecting and downloading messges...'
+    print 'Messages will be found in %s' % output_path
 
     for msg in get_messages(server):
         msg_num = int(split(msg, " ")[0])
@@ -146,12 +165,9 @@ def main():
         message = "\n".join(message)
 
         try:
-            print 'processing new message...'
             process_message(message)
         except Exception, ex:
             _logger.exception(ex.message)
-
-    print 'closing connection...'
 
     server.quit()
 
